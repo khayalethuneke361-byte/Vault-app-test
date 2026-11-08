@@ -1,0 +1,436 @@
+<!-- ═══════════════════════════════════════════════════════════
+     VAULT CLOCK — single-file PWA
+     Save as index.html. Open in browser, or "Add to Home Screen"
+     for an app-like icon. Works offline after first load.
+     ═══════════════════════════════════════════════════════════ -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Clock</title>
+<style>
+:root{
+  --bg:#000; --fg:#fff; --dim:#8e8e93;
+  --card:rgba(28,28,30,.72); --blur:blur(30px) saturate(180%);
+  --radius:22px; --accent:#0a84ff;
+  --ease:cubic-bezier(.32,.72,0,1);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;user-select:none}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+  transition:opacity .45s var(--ease),transform .45s var(--ease)}
+.hidden{opacity:0;pointer-events:none;transform:scale(1.06)}
+
+/* ---------- CLOCK ---------- */
+#clock{justify-content:center;align-items:center;gap:6px}
+#time{font-size:clamp(64px,22vw,120px);font-weight:200;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;line-height:1;
+  background:linear-gradient(180deg,#fff,#b0b0b8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  animation:breathe 6s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.82}}
+#date{font-size:17px;color:var(--dim);font-weight:500;letter-spacing:.01em}
+#hint{position:absolute;bottom:calc(28px + env(safe-area-inset-bottom));
+  font-size:12px;color:#3a3a3c;letter-spacing:.08em;text-transform:uppercase}
+
+/* ---------- ALARM LIST ---------- */
+#alarms{justify-content:flex-start;padding-top:70px}
+.nav{position:absolute;top:calc(14px + env(safe-area-inset-top));left:20px;right:20px;
+  display:flex;justify-content:space-between;align-items:center}
+.nav h1{font-size:34px;font-weight:700;letter-spacing:-.02em}
+.nav button{background:var(--card);backdrop-filter:var(--blur);border:none;color:var(--accent);
+  width:38px;height:38px;border-radius:50%;font-size:22px;cursor:pointer;
+  transition:transform .2s var(--ease)}
+.nav button:active{transform:scale(.9)}
+.alarm-item{background:var(--card);backdrop-filter:var(--blur);border-radius:var(--radius);
+  padding:16px 18px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;
+  animation:slideUp .5s var(--ease) both}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+.alarm-item .t{font-size:28px;font-weight:300;font-variant-numeric:tabular-nums}
+.alarm-item .l{font-size:13px;color:var(--dim);margin-top:2px}
+.toggle{width:51px;height:31px;border-radius:16px;background:#39393d;position:relative;
+  cursor:pointer;transition:background .3s var(--ease)}
+.toggle.on{background:#30d158}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;
+  border-radius:50%;background:#fff;transition:transform .3s var(--ease);
+  box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.toggle.on::after{transform:translateX(20px)}
+
+/* ---------- PASSCODE ---------- */
+#lock{justify-content:center;align-items:center;gap:28px}
+#lock .dots{display:flex;gap:20px}
+#lock .dot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--dim);
+  transition:all .2s var(--ease)}
+#lock .dot.filled{background:var(--fg);border-color:var(--fg);transform:scale(1.1)}
+#lock .msg{font-size:15px;color:var(--dim);min-height:20px}
+.keypad{display:grid;grid-template-columns:repeat(3,74px);gap:16px}
+.key{width:74px;height:74px;border-radius:50%;background:rgba(255,255,255,.1);
+  backdrop-filter:var(--blur);border:none;color:#fff;font-size:30px;font-weight:300;
+  cursor:pointer;transition:transform .12s var(--ease),background .12s}
+.key:active{transform:scale(.9);background:rgba(255,255,255,.24)}
+.key.blank{visibility:hidden}
+.key.del{font-size:22px}
+
+/* ---------- VAULT HOME ---------- */
+#vault{background:radial-gradient(120% 80% at 50% 0%,#1c1c2e 0%,#000 60%);
+  justify-content:flex-start;padding-top:70px}
+#vault .nav h1{background:linear-gradient(90deg,#0a84ff,#bf5af2);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px 12px;margin-top:20px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;
+  animation:pop .45s var(--ease) both}
+@keyframes pop{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+.tile .icon{width:62px;height:62px;border-radius:16px;display:flex;align-items:center;
+  justify-content:center;font-size:28px;backdrop-filter:var(--blur);
+  box-shadow:0 6px 18px rgba(0,0,0,.4);transition:transform .18s var(--ease)}
+.tile:active .icon{transform:scale(.88)}
+.tile span{font-size:11px;color:var(--dim);text-align:center;line-height:1.2}
+
+/* ---------- PANEL (video / apps) ---------- */
+.panel{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(8px);
+  z-index:50;display:flex;align-items:flex-end;opacity:0;pointer-events:none;
+  transition:opacity .35s var(--ease)}
+.panel.open{opacity:1;pointer-events:auto}
+.sheet{width:100%;max-height:82vh;background:#1c1c1e;border-radius:24px 24px 0 0;
+  padding:22px 20px calc(24px + env(safe-area-inset-bottom));
+  transform:translateY(100%);transition:transform .4s var(--ease);overflow:auto}
+.panel.open .sheet{transform:none}
+.sheet h2{font-size:24px;font-weight:700;margin-bottom:14px}
+.vid{aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000;
+  margin-bottom:12px;display:flex;align-items:center;justify-content:center;
+  color:var(--dim);font-size:13px;cursor:pointer;transition:transform .15s}
+.vid:active{transform:scale(.97)}
+.vid img{width:100%;height:100%;object-fit:cover}
+.app-row{display:flex;justify-content:space-between;align-items:center;
+  padding:14px 0;border-bottom:1px solid #2c2c2e}
+.app-row:last-child{border:none}
+.app-row .n{font-size:16px}
+.app-row .go{color:var(--accent);font-size:14px}
+
+/* ---------- LIQUID BG ---------- */
+#bg{position:fixed;inset:0;z-index:-1;overflow:hidden;opacity:.5}
+.blob{position:absolute;border-radius:50%;filter:blur(80px);mix-blend-mode:screen}
+.b1{width:60vmax;height:60vmax;background:#0a84ff;top:-20vmax;left:-20vmax;
+  animation:drift1 18s ease-in-out infinite}
+.b2{width:50vmax;height:50vmax;background:#bf5af2;bottom:-15vmax;right:-15vmax;
+  animation:drift2 22s ease-in-out infinite}
+.b3{width:40vmax;height:40vmax;background:#30d158;top:30%;left:40%;
+  animation:drift3 26s ease-in-out infinite}
+@keyframes drift1{50%{transform:translate(15vmax,10vmax) scale(1.2)}}
+@keyframes drift2{50%{transform:translate(-12vmax,-8vmax) scale(1.15)}}
+@keyframes drift3{50%{transform:translate(-10vmax,12vmax) scale(.9)}}
+#clock~#bg .blob{opacity:0;transition:opacity 1s}
+</style>
+</head>
+<body>
+
+<div id="bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<!-- CLOCK -->
+<section id="clock" class="screen">
+  <div id="time">00:00</div>
+  <div id="date">—</div>
+  <div id="hint">Alarms</div>
+</section>
+
+<!-- ALARMS -->
+<section id="alarms" class="screen hidden">
+  <div class="nav">
+    <h1>Alarms</h1>
+    <button id="addAlarm">+</button>
+  </div>
+  <div id="alarmList"></div>
+</section>
+
+<!-- PASSCODE -->
+<section id="lock" class="screen hidden">
+  <div class="dots">
+    <div class="dot"></div><div class="dot"></div>
+    <div class="dot"></div><div class="dot"></div>
+  </div>
+  <div class="msg" id="lockMsg">Enter Passcode</div>
+  <div class="keypad" id="keypad"></div>
+</section>
+
+<!-- VAULT HOME -->
+<section id="vault" class="screen hidden">
+  <div class="nav">
+    <h1>Vault</h1>
+    <button id="lockVault">⏻</button>
+  </div>
+  <div class="grid" id="vaultGrid"></div>
+</section>
+
+<!-- PANEL -->
+<div class="panel" id="panel">
+  <div class="sheet">
+    <h2 id="panelTitle"></h2>
+    <div id="panelBody"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════ CONFIG ═══════════ */
+const PASSCODE = "2846";              // <-- change this
+const TAP_SECRET = 7;                 // taps on the hint text to open lock
+const CLOCK_TAPS_FOR_LOCK = 6;        // taps on the clock digits
+
+/* ═══════════ STATE ═══════════ */
+let alarms = JSON.parse(localStorage.getItem("vaultAlarms")||"[]");
+let entered = "";
+let clockTaps = 0, hintTaps = 0;
+let clockTimer, tapTimeout;
+
+/* ═══════════ CLOCK ═══════════ */
+const timeEl = document.getElementById("time");
+const dateEl = document.getElementById("date");
+const opts = {weekday:"long",month:"long",day:"numeric"};
+function tick(){
+  const d = new Date();
+  const h = String(d.getHours()).padStart(2,"0");
+  const m = String(d.getMinutes()).padStart(2,"0");
+  timeEl.textContent = `${h}:${m}`;
+  dateEl.textContent = d.toLocaleDateString(undefined,opts);
+  checkAlarms(d);
+}
+setInterval(tick,1000); tick();
+
+/* ═══════════ ALARM CHECK ═══════════ */
+function checkAlarms(d){
+  const now = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  alarms.forEach(a=>{
+    if(a.on && a.time===now && !a._fired){
+      a._fired = true;
+      if(navigator.vibrate) navigator.vibrate([400,200,400,200,600]);
+      if(window.Audio){
+        try{
+          const ctx = new (window.AudioContext||window.webkitAudioContext)();
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+          g.gain.value = .15; o.start();
+          setTimeout(()=>{o.stop();ctx.close()},900);
+        }catch(e){}
+      }
+    }
+    if(a.on && a.time!==now) a._fired = false;
+  });
+}
+
+/* ═══════════ ALARM UI ═══════════ */
+const alarmList = document.getElementById("alarmList");
+function renderAlarms(){
+  alarmList.innerHTML = "";
+  if(!alarms.length){
+    alarmList.innerHTML = `<div style="text-align:center;color:#8e8e93;padding:60px 0;font-size:15px">
+      No Alarms</div>`;
+    return;
+  }
+  alarms.sort((a,b)=>a.time.localeCompare(b.time)).forEach((a,i)=>{
+    const el = document.createElement("div");
+    el.className = "alarm-item";
+    el.style.animationDelay = (i*0.06)+"s";
+    el.innerHTML = `
+      <div><div class="t">${a.time}</div><div class="l">${a.label||"Alarm"}</div></div>
+      <div class="toggle ${a.on?"on":""}" data-i="${i}"></div>`;
+    el.querySelector(".toggle").onclick = e=>{
+      e.stopPropagation();
+      a.on = !a.on;
+      localStorage.setItem("vaultAlarms",JSON.stringify(alarms));
+      renderAlarms();
+    };
+    alarmList.appendChild(el);
+  });
+}
+document.getElementById("addAlarm").onclick = ()=>{
+  const t = prompt("Time (HH:MM, 24h)","07:00");
+  if(!t || !/^\d{1,2}:\d{2}$/.test(t)) return;
+  const [h,m] = t.split(":").map(x=>x.padStart(2,"0"));
+  const label = prompt("Label","Alarm") || "Alarm";
+  alarms.push({time:`${h}:${m}`,label,on:true});
+  localStorage.setItem("vaultAlarms",JSON.stringify(alarms));
+  renderAlarms();
+};
+renderAlarms();
+
+/* ═══════════ NAVIGATION ═══════════ */
+const clockScr = document.getElementById("clock");
+const alarmsScr = document.getElementById("alarms");
+const lockScr = document.getElementById("lock");
+const vaultScr = document.getElementById("vault");
+
+function show(el){
+  [clockScr,alarmsScr,lockScr,vaultScr].forEach(s=>{
+    if(s===el){s.classList.remove("hidden")}
+    else if(!s.classList.contains("hidden")){s.classList.add("hidden")}
+  });
+}
+
+/* tap hint -> alarms, tap digits -> lock */
+document.getElementById("hint").onclick = ()=>{
+  hintTaps++;
+  if(hintTaps >= TAP_SECRET){ hintTaps=0; openLock(); return; }
+  clearTimeout(tapTimeout);
+  tapTimeout = setTimeout(()=>{ if(hintTaps>0){hintTaps=0; show(alarmsScr);} },400);
+};
+timeEl.onclick = ()=>{
+  clockTaps++;
+  if(clockTaps >= CLOCK_TAPS_FOR_LOCK){ clockTaps=0; openLock(); }
+  clearTimeout(tapTimeout);
+  tapTimeout = setTimeout(()=>clockTaps=0,1200);
+};
+
+/* ═══════════ PASSCODE ═══════════ */
+const keypad = document.getElementById("keypad");
+const lockMsg = document.getElementById("lockMsg");
+const dots = document.querySelectorAll("#lock .dot");
+function buildKeypad(){
+  const keys = ["1","2","3","4","5","6","7","8","9","","0","⌫"];
+  keys.forEach(k=>{
+    const b = document.createElement("button");
+    b.className = "key"+(k===""?" blank":"")+(k==="⌫"?" del":"");
+    b.textContent = k;
+    if(k==="") b.disabled = true;
+    else b.onclick = ()=>pressKey(k);
+    keypad.appendChild(b);
+  });
+}
+buildKeypad();
+
+function openLock(){
+  entered = "";
+  lockMsg.textContent = "Enter Passcode";
+  updateDots();
+  show(lockScr);
+}
+function updateDots(){
+  dots.forEach((d,i)=>d.classList.toggle("filled",i<entered.length));
+}
+function pressKey(k){
+  if(k==="⌫"){
+    entered = entered.slice(0,-1);
+    updateDots(); return;
+  }
+  if(entered.length>=4) return;
+  entered += k;
+  updateDots();
+  if(navigator.vibrate) navigator.vibrate(8);
+  if(entered.length===4){
+    setTimeout(()=>{
+      if(entered===PASSCODE){ openVault(); }
+      else{
+        lockMsg.textContent = "Wrong Passcode";
+        if(navigator.vibrate) navigator.vibrate([60,40,60]);
+        entered = "";
+        setTimeout(()=>{updateDots();lockMsg.textContent="Enter Passcode"},600);
+      }
+    },140);
+  }
+}
+
+/* ═══════════ VAULT ═══════════ */
+const vaultGrid = document.getElementById("vaultGrid");
+const panel = document.getElementById("panel");
+const panelTitle = document.getElementById("panelTitle");
+const panelBody = document.getElementById("panelBody");
+
+const TILES = [
+  {name:"Videos",   icon:"🎬", grad:"linear-gradient(135deg,#ff375f,#ff9f0a)", type:"videos"},
+  {name:"Photos",   icon:"🖼️", grad:"linear-gradient(135deg,#bf5af2,#5e5ce6)", type:"photos"},
+  {name:"Apps",     icon:"📦", grad:"linear-gradient(135deg,#0a84ff,#64d2ff)", type:"apps"},
+  {name:"Files",    icon:"📁", grad:"linear-gradient(135deg,#30d158,#0a84ff)", type:"files"},
+  {name:"Notes",    icon:"📝", grad:"linear-gradient(135deg,#ffd60a,#ff9f0a)", type:"notes"},
+  {name:"Music",    icon:"🎵", grad:"linear-gradient(135deg,#ff2d55,#bf5af2)", type:"music"},
+  {name:"Contacts", icon:"👤", grad:"linear-gradient(135deg,#64d2ff,#5e5ce6)", type:"contacts"},
+  {name:"Settings", icon:"⚙️", grad:"linear-gradient(135deg,#8e8e93,#3a3a3c)", type:"settings"},
+];
+
+function renderVault(){
+  vaultGrid.innerHTML = "";
+  TILES.forEach((t,i)=>{
+    const el = document.createElement("div");
+    el.className = "tile";
+    el.style.animationDelay = (i*0.05)+"s";
+    el.innerHTML = `<div class="icon" style="background:${t.grad}">${t.icon}</div><span>${t.name}</span>`;
+    el.onclick = ()=>openPanel(t);
+    vaultGrid.appendChild(el);
+  });
+}
+function openPanel(tile){
+  panelTitle.textContent = tile.name;
+  panelBody.innerHTML = "";
+  if(tile.type==="videos"){
+    const vids = [
+      {n:"Sample Video 1", img:"https://picsum.photos/seed/v1/640/360"},
+      {n:"Sample Video 2", img:"https://picsum.photos/seed/v2/640/360"},
+      {n:"Sample Video 3", img:"https://picsum.photos/seed/v3/640/360"},
+    ];
+    vids.forEach(v=>{
+      const d = document.createElement("div");
+      d.className = "vid";
+      d.innerHTML = `<img src="${v.img}" alt="${v.n}">`;
+      d.onclick = ()=>{ alert("Hook your own video source here."); };
+      panelBody.appendChild(d);
+    });
+  } else if(tile.type==="apps"){
+    const apps = [
+      {n:"Calculator", go:"Open"},
+      {n:"Browser", go:"Open"},
+      {n:"Camera", go:"Open"},
+      {n:"Files", go:"Open"},
+    ];
+    apps.forEach(a=>{
+      const d = document.createElement("div");
+      d.className = "app-row";
+      d.innerHTML = `<span class="n">${a.n}</span><span class="go">${a.go}</span>`;
+      panelBody.appendChild(d);
+    });
+  } else {
+    panelBody.innerHTML = `<div style="color:#8e8e93;font-size:14px;padding:20px 0">
+      ${tile.name} section — wire your content here.</div>`;
+  }
+  panel.classList.add("open");
+}
+panel.onclick = e=>{ if(e.target===panel) panel.classList.remove("open"); };
+
+function openVault(){ show(vaultScr); renderVault(); }
+document.getElementById("lockVault").onclick = ()=>{ show(clockScr); };
+
+/* ═══════════ SWIPE DOWN TO EXIT PANEL ═══════════ */
+let sy=0;
+panel.addEventListener("touchstart",e=>sy=e.touches[0].clientY,{passive:true});
+panel.addEventListener("touchend",e=>{
+  if(e.changedTouches[0].clientY - sy > 90) panel.classList.remove("open");
+},{passive:true});
+
+/* ═══════════ BACK BUTTON ═══════════ */
+window.addEventListener("popstate",()=>{
+  if(panel.classList.contains("open")){ panel.classList.remove("open"); history.pushState(null,"",location.href); return; }
+  if(!vaultScr.classList.contains("hidden")){ show(clockScr); history.pushState(null,"",location.href); return; }
+  if(!lockScr.classList.contains("hidden")||!alarmsScr.classList.contains("hidden")){ show(clockScr); history.pushState(null,"",location.href); }
+});
+history.pushState(null,"",location.href);
+
+/* ═══════════ SERVICE WORKER (offline PWA) ═══════════ */
+if("serviceWorker" in navigator){
+  const sw = `self.addEventListener('install',e=>self.skipWaiting());
+  self.addEventListener('activate',e=>e.waitUntil(clients.claim()));
+  self.addEventListener('fetch',e=>{
+    e.respondWith(caches.open('v1').then(c=>
+      c.match(e.request).then(r=>r||fetch(e.request).then(res=>{
+        c.put(e.request,res.clone()); return res;
+      }).catch(()=>c.match(e.request)))
+    ));
+  });`;
+  const blob = new Blob([sw],{type:"text/javascript"});
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+}
+</script>
+</body>
+  </html>
